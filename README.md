@@ -9,6 +9,7 @@ Deploy an Ubuntu 24.04 container with the lightweight XFCE desktop and xrdp. Con
 - Ubuntu 24.04
 - XFCE desktop
 - xrdp and xorgxrdp
+- Multilogin desktop app
 - Password supplied through Railway variables
 - Optional persistent home directory using a Railway Volume
 - TCP port `3389`
@@ -42,6 +43,16 @@ Do not create a public HTTP domain for this service. RDP uses the TCP Proxy, not
 3. Enter the value of `RDP_USER` as the username and `RDP_PASSWORD` as the password.
 4. If the client warns that the server certificate cannot be verified, confirm only after checking that the hostname matches the TCP Proxy shown in your Railway project.
 
+## Open Multilogin
+
+After signing in to the RDP desktop, open the `Multilogin` shortcut on the desktop. You can also open a terminal and run:
+
+```bash
+mlxapp
+```
+
+Sign in with your own Multilogin account. Multilogin stores its local data under `/home/<RDP_USER>/mlx`, so attach a Railway Volume to the user's home directory if you need that data to survive redeployments.
+
 ## Persistent files
 
 Without a Volume, files inside the container may disappear when Railway redeploys the service.
@@ -57,8 +68,8 @@ Set the username before attaching the Volume. Changing `RDP_USER` later also cha
 
 ## Suggested resources
 
-- Minimum for light terminal/browser use: 1 vCPU and 2 GB RAM.
-- More comfortable desktop use: 2 vCPU and 4 GB RAM.
+- Minimum for light terminal use: 1 vCPU and 2 GB RAM.
+- Multilogin requires at least 4 GB RAM; 2 vCPU and 4 GB RAM is the practical minimum for the desktop and one light browser profile.
 
 Railway charges for actual CPU, memory, storage, and network usage. A continuously running graphical desktop may cost more than a small fixed-price VPS.
 
@@ -102,4 +113,3 @@ docker run --rm -p 3389:3389 \
 ```
 
 Then connect an RDP client to `localhost:3389`.
-

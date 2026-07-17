@@ -35,8 +35,15 @@ chmod 0440 "/etc/sudoers.d/$RDP_USER"
 HOME_DIR="$(getent passwd "$RDP_USER" | cut -d: -f6)"
 mkdir -p "$HOME_DIR" /run/xrdp /var/log/xrdp
 printf '%s\n' 'startxfce4' > "$HOME_DIR/.xsession"
+
+if [[ -f /usr/share/applications/mlxapp.desktop ]]; then
+  mkdir -p "$HOME_DIR/Desktop"
+  install -m 0755 \
+    /usr/share/applications/mlxapp.desktop \
+    "$HOME_DIR/Desktop/Multilogin.desktop"
+fi
+
 chown -R "$RDP_USER:$RDP_USER" "$HOME_DIR"
 chmod 0700 "$HOME_DIR"
 
 exec /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf
-

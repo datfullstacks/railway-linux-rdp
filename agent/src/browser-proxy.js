@@ -2,6 +2,8 @@ import http from 'node:http';
 import net from 'node:net';
 
 const MAX_PROXY_RESPONSE_BYTES = 2 * 1024 * 1024;
+const TARGET_STARTUP_RETRY_MS = 20000;
+const TARGET_STARTUP_RETRY_DELAY_MS = 250;
 
 function parseBrowserRoute(rawUrl) {
   const url = new URL(rawUrl || '/', 'http://multilogin-agent.local');
@@ -55,44 +57,60 @@ export function createBrowserProxy(sessionRegistry) {
       const session = route && sessionRegistry.resolveCapability(route.sessionId, route.capability);
       if (!route || !session) return writeProxyError(res, 404, 'SESSION_NOT_FOUND');
 
-      const target = http.request({
-        hostname: '127.0.0.1',
-        port: session.port,
-        path: route.targetPath,
-        method: req.method,
-        headers: targetHeaders(req.headers, session.port)
-      }, (targetResponse) => {
-        const chunks = [];
-        let size = 0;
-        targetResponse.on('data', (chunk) => {
-          size += chunk.length;
-          if (size > MAX_PROXY_RESPONSE_BYTES) {
-            target.destroy(new Error('Browser proxy response too large'));
+      const retryableMethod = req.method === 'GET' || req.method === 'HEAD';
+      const retryDeadline = Date.now() + TARGET_STARTUP_RETRY_MS;
+      let attempt = 0;
+      const connect = () => {
+        attempt += 1;
+        const target = http.request({
+          hostname: '127.0.0.1',
+          port: session.port,
+          path: route.targetPath,
+          method: req.method,
+          headers: targetHeaders(req.headers, session.port)
+        }, (targetResponse) => {
+          const chunks = [];
+          let size = 0;
+          targetResponse.on('data', (chunk) => {
+            size += chunk.length;
+            if (size > MAX_PROXY_RESPONSE_BYTES) {
+              target.destroy(new Error('Browser proxy response too large'));
+              return;
+            }
+            chunks.push(chunk);
+          });
+          targetResponse.on('end', () => {
+            if (res.destroyed) return;
+            let body = Buffer.concat(chunks);
+            const contentType = String(targetResponse.headers['content-type'] || '');
+            if (/json|text/i.test(contentType)) {
+              body = Buffer.from(rewriteDebuggerUrls(
+                body.toString('utf8'),
+                req.headers.host || 'railway-linux-rdp.railway.internal:8787',
+                session,
+                route
+              ));
+            }
+            const headers = { ...targetResponse.headers, 'content-length': body.length };
+            delete headers['transfer-encoding'];
+            res.writeHead(targetResponse.statusCode || 502, headers);
+            res.end(body);
+          });
+        });
+        target.setTimeout(70000, () => target.destroy(Object.assign(new Error('Browser proxy timeout'), { code: 'ETIMEDOUT' })));
+        target.on('error', (error) => {
+          const retryableError = ['ECONNREFUSED', 'ECONNRESET'].includes(String(error?.code || ''));
+          if (retryableMethod && retryableError && Date.now() < retryDeadline && !res.destroyed) {
+            setTimeout(connect, TARGET_STARTUP_RETRY_DELAY_MS);
             return;
           }
-          chunks.push(chunk);
+          console.warn(`[multilogin-agent] browser proxy target failed code=${String(error?.code || 'UNKNOWN')} attempts=${attempt}`);
+          writeProxyError(res, 502, 'BROWSER_PROXY_FAILED');
         });
-        targetResponse.on('end', () => {
-          if (res.destroyed) return;
-          let body = Buffer.concat(chunks);
-          const contentType = String(targetResponse.headers['content-type'] || '');
-          if (/json|text/i.test(contentType)) {
-            body = Buffer.from(rewriteDebuggerUrls(
-              body.toString('utf8'),
-              req.headers.host || 'railway-linux-rdp.railway.internal:8787',
-              session,
-              route
-            ));
-          }
-          const headers = { ...targetResponse.headers, 'content-length': body.length };
-          delete headers['transfer-encoding'];
-          res.writeHead(targetResponse.statusCode || 502, headers);
-          res.end(body);
-        });
-      });
-      target.setTimeout(70000, () => target.destroy(new Error('Browser proxy timeout')));
-      target.on('error', () => writeProxyError(res, 502, 'BROWSER_PROXY_FAILED'));
-      req.pipe(target);
+        if (attempt === 1) req.pipe(target);
+        else target.end();
+      };
+      connect();
       return undefined;
     },
 

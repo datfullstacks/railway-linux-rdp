@@ -62,3 +62,32 @@ test('browser proxy rejects invalid capabilities before connecting locally', asy
   assert.equal(response.status, 404);
   assert.equal((await response.json()).error.code, 'SESSION_NOT_FOUND');
 });
+
+test('browser proxy waits for a delayed DevTools listener', async (t) => {
+  const reservation = http.createServer();
+  const browserPort = await listen(reservation);
+  await new Promise((resolve) => reservation.close(resolve));
+
+  const sessions = new SessionRegistry();
+  const registered = sessions.create({
+    profileId: 'saved-profile',
+    port: browserPort,
+    automation: 'playwright'
+  });
+  const proxy = createBrowserProxy(sessions);
+  const agent = http.createServer((req, res) => proxy.proxyHttp(req, res));
+  const agentPort = await listen(agent);
+  t.after(() => new Promise((resolve) => agent.close(resolve)));
+  t.after(() => proxy.close());
+
+  const browser = http.createServer((_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ webSocketDebuggerUrl: `ws://127.0.0.1:${browserPort}/devtools/browser/delayed` }));
+  });
+  t.after(() => new Promise((resolve) => browser.close(resolve)));
+  setTimeout(() => browser.listen(browserPort, '127.0.0.1'), 150);
+
+  const response = await fetch(`http://127.0.0.1:${agentPort}${registered.connectionPath}/json/version`);
+  assert.equal(response.status, 200);
+  assert.match((await response.json()).webSocketDebuggerUrl, /\/devtools\/browser\/delayed$/);
+});

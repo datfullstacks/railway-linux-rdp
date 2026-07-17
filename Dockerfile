@@ -44,8 +44,14 @@ RUN apt-get update \
 COPY supervisord.conf /etc/supervisor/conf.d/railway-rdp.conf
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY google-chrome-rdp.sh /usr/local/bin/google-chrome-rdp
+COPY mimic-chrome-wrapper.sh /usr/local/libexec/mimic-chrome-wrapper
+COPY mimic-wrapper-watch.sh /usr/local/bin/mimic-wrapper-watch
 
-RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/bin/google-chrome-rdp \
+RUN chmod 0755 \
+      /usr/local/bin/entrypoint.sh \
+      /usr/local/bin/google-chrome-rdp \
+      /usr/local/bin/mimic-wrapper-watch \
+      /usr/local/libexec/mimic-chrome-wrapper \
     && update-alternatives --install \
       /usr/bin/x-www-browser \
       x-www-browser \

@@ -54,6 +54,8 @@ mlxapp
 
 Sign in with your own Multilogin account. Multilogin stores its local data under `/home/<RDP_USER>/mlx`, so attach a Railway Volume to the user's home directory if you need that data to survive redeployments.
 
+Railway blocks the Linux sandbox operation required by the Mimic browser core. A supervised watcher therefore wraps every downloaded `mimic_*` core and launches it with `--no-sandbox`, `--disable-dev-shm-usage`, and software rendering. This applies to every Mimic profile in this container. Use only a trusted single-user RDP account and avoid sensitive browsing because disabling the browser sandbox reduces isolation.
+
 ## Open Google Chrome
 
 Open the `Google Chrome` shortcut on the desktop, or run this command in a terminal:
@@ -90,6 +92,7 @@ Railway charges for actual CPU, memory, storage, and network usage. A continuous
 - Never commit the password to GitHub or place it in `railway.toml`.
 - Anyone with the TCP Proxy address can reach the login screen, so protect the password carefully.
 - The generated RDP certificate is self-signed. This encrypts the connection but does not provide public certificate authority verification.
+- Google Chrome and every Multilogin Mimic profile run with the Chromium sandbox disabled to work within Railway's container restrictions.
 - This image grants the RDP user passwordless `sudo` inside its own container. Remove the corresponding `usermod` and sudoers lines in `entrypoint.sh` if administrative access is unnecessary.
 - Do not use this container to store your only copy of important data.
 

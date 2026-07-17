@@ -31,6 +31,10 @@ async function fixture() {
         }
       }));
     }
+    if (req.url === '/api/v1/profile/stop/p/already-stopped') {
+      res.statusCode = 500;
+      return res.end(JSON.stringify({ status: { http_code: 500, message: 'Profile already stopped' } }));
+    }
     if (req.url.startsWith('/api/v1/profile/stop/p/')) return res.end(JSON.stringify({ ok: true }));
     res.statusCode = 404;
     return res.end(JSON.stringify({ message: 'not found' }));
@@ -65,6 +69,11 @@ test('launcher client performs authenticated allowlisted profile operations', as
   assert.deepEqual(await client.stopProfile({ profileId: 'quick-1' }), {
     profileId: 'quick-1',
     stopped: true
+  });
+  assert.deepEqual(await client.stopProfile({ profileId: 'already-stopped' }), {
+    profileId: 'already-stopped',
+    stopped: true,
+    alreadyStopped: true
   });
   const validation = await client.validateProxy({
     proxy: {

@@ -238,9 +238,16 @@ export class LauncherClient {
 
   async stopProfile({ profileId }, context = {}) {
     const profile = cleanId(profileId, 'profileId');
-    await this.request(`/api/v1/profile/stop/p/${encodeURIComponent(profile)}`, {
-      signal: context.signal
-    });
-    return { profileId: profile, stopped: true };
+    try {
+      await this.request(`/api/v1/profile/stop/p/${encodeURIComponent(profile)}`, {
+        signal: context.signal
+      });
+      return { profileId: profile, stopped: true };
+    } catch (error) {
+      const alreadyStopped = error?.code === 'LAUNCHER_REQUEST_FAILED'
+        && /already (?:stopped|closed)|not (?:running|found)|does not exist|no active profile/i.test(String(error?.message || ''));
+      if (!alreadyStopped) throw error;
+      return { profileId: profile, stopped: true, alreadyStopped: true };
+    }
   }
 }

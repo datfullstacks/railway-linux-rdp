@@ -31,3 +31,26 @@ test('config rejects unsafe numeric values and non-http launcher URLs', () => {
     /HTTP or HTTPS/
   );
 });
+
+test('config can reuse an existing base64 sieuapp settings reference', () => {
+  const settings = Buffer.from(JSON.stringify({
+    multilogin: { automationToken: 'workspace-automation-token' }
+  })).toString('base64');
+  const config = loadConfig({
+    MULTILOGIN_AGENT_TOKEN: TOKEN,
+    SIEUAPP_SETTINGS_JSON_BASE64: settings
+  });
+  assert.equal(config.automationToken, 'workspace-automation-token');
+});
+
+test('direct automation token takes precedence over base64 settings', () => {
+  const settings = Buffer.from(JSON.stringify({
+    multilogin: { automationToken: 'settings-token' }
+  })).toString('base64');
+  const config = loadConfig({
+    MULTILOGIN_AGENT_TOKEN: TOKEN,
+    MULTILOGIN_TOKEN: 'direct-token',
+    SIEUAPP_SETTINGS_JSON_BASE64: settings
+  });
+  assert.equal(config.automationToken, 'direct-token');
+});

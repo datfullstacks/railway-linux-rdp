@@ -28,6 +28,7 @@ Deploy an Ubuntu 24.04 container with the lightweight XFCE desktop and xrdp. Con
    | `RDP_USER` | No | `railway` | Lowercase Linux username; defaults to `railway` |
    | `MULTILOGIN_AGENT_TOKEN` | No | Generate a random secret | Enables the private agent API; minimum 32 characters |
    | `MULTILOGIN_TOKEN` | Required by agent profile jobs | Multilogin Automation Token | Do not use the account password |
+   | `SIEUAPP_SETTINGS_JSON_BASE64` | Alternative to `MULTILOGIN_TOKEN` | Railway variable reference | Reuses an existing worker's settings without copying its token |
 
 4. Open **Settings → Networking → TCP Proxy**.
 5. Add a TCP Proxy targeting internal port `3389`.

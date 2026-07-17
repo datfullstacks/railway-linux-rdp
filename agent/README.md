@@ -14,7 +14,8 @@ Required Railway variables:
 | Variable | Purpose |
 | --- | --- |
 | `MULTILOGIN_AGENT_TOKEN` | Shared secret used by Canva, Claude, and GPT workers. Minimum 32 characters. |
-| `MULTILOGIN_TOKEN` | Multilogin workspace Automation Token used by the local Launcher API. |
+| `MULTILOGIN_TOKEN` | Multilogin workspace Automation Token used by the local Launcher API. Optional when `SIEUAPP_SETTINGS_JSON_BASE64` contains the same token. |
+| `SIEUAPP_SETTINGS_JSON_BASE64` | Existing sieuapp settings; use a Railway reference to avoid copying the Automation Token. |
 
 Optional variables:
 

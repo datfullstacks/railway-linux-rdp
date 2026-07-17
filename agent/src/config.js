@@ -19,6 +19,19 @@ function strongSecret(value, key) {
   return secret;
 }
 
+function automationToken(env) {
+  const direct = String(env.MULTILOGIN_TOKEN || '').trim();
+  if (direct) return direct;
+  const encodedSettings = String(env.SIEUAPP_SETTINGS_JSON_BASE64 || '').trim();
+  if (!encodedSettings) return '';
+  try {
+    const settings = JSON.parse(Buffer.from(encodedSettings, 'base64').toString('utf8'));
+    return String(settings?.multilogin?.automationToken || '').trim();
+  } catch {
+    return '';
+  }
+}
+
 export function loadConfig(env = process.env) {
   const launcherUrl = String(env.MLX_LAUNCHER || 'https://launcher.mlx.yt:45001').replace(/\/+$/, '');
   let parsedLauncher;
@@ -35,7 +48,7 @@ export function loadConfig(env = process.env) {
     bind: String(env.MULTILOGIN_AGENT_BIND || '::').trim(),
     port: integer(env, 'MULTILOGIN_AGENT_PORT', 8787, { min: 1, max: 65535 }),
     apiToken: strongSecret(env.MULTILOGIN_AGENT_TOKEN, 'MULTILOGIN_AGENT_TOKEN'),
-    automationToken: String(env.MULTILOGIN_TOKEN || '').trim(),
+    automationToken: automationToken(env),
     launcherUrl,
     launcherTimeoutMs: integer(env, 'MULTILOGIN_AGENT_LAUNCHER_TIMEOUT_MS', 60000, {
       min: 1000,

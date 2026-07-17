@@ -35,6 +35,55 @@ function cleanProfileName(value) {
   return normalized;
 }
 
+function firstCreatedProfileId(response) {
+  const data = response?.data;
+  const candidates = [
+    data?.profile_id,
+    data?.profileId,
+    data?.id,
+    response?.profile_id,
+    response?.profileId,
+    response?.id,
+    data?.profile_ids,
+    data?.profileIds,
+    data?.ids,
+    response?.profile_ids,
+    response?.profileIds,
+    response?.ids,
+    Array.isArray(data) ? data : null
+  ];
+  for (const candidate of candidates) {
+    const values = Array.isArray(candidate) ? candidate : [candidate];
+    for (const value of values) {
+      const id = typeof value === 'string'
+        ? value
+        : value?.profile_id || value?.profileId || value?.id;
+      if (id) return String(id);
+    }
+  }
+  return '';
+}
+
+function matchingProfileId(response, { folderId, name }) {
+  const matches = [];
+  const visit = (value) => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    const profileId = value.profile_id || value.profileId;
+    const profileName = String(value.name || value.profile_name || value.profileName || '').trim();
+    const profileFolder = String(value.folder_id || value.folderId || '').trim();
+    if (profileId && profileName === name && profileFolder === folderId) {
+      matches.push(String(profileId));
+    }
+    for (const nested of Object.values(value)) visit(nested);
+  };
+  visit(response?.data ?? response);
+  return matches.at(-1) || '';
+}
+
 function cleanProxy(proxy) {
   if (proxy == null) return null;
   if (!proxy || typeof proxy !== 'object' || Array.isArray(proxy)) {
@@ -188,6 +237,20 @@ export class LauncherClient {
     if (!['mimic', 'stealthfox'].includes(browser) || !['windows', 'macos', 'linux'].includes(os)) {
       throw new AgentError('PAYLOAD_INVALID', 'saved profile browser or OS type is invalid', { status: 400 });
     }
+    const existingProfileId = await this.findSavedProfile({ folderId: folder, name: profileName }, context)
+      .catch(() => '');
+    if (existingProfileId) {
+      return {
+        profileId: existingProfileId,
+        folderId: folder,
+        name: profileName,
+        browserType: browser,
+        osType: os,
+        proxy: false,
+        reused: true
+      };
+    }
+
     const response = await this.request('/profile/create', {
       api: true,
       method: 'POST',
@@ -203,10 +266,21 @@ export class LauncherClient {
       },
       signal: context.signal
     });
-    const profileId = response?.data?.profile_id || response?.data?.id;
+    let profileId = firstCreatedProfileId(response);
     if (!profileId) {
+      for (let attempt = 0; attempt < 3 && !profileId; attempt += 1) {
+        if (attempt) await new Promise((resolve) => setTimeout(resolve, 750));
+        profileId = await this.findSavedProfile({ folderId: folder, name: profileName }, context)
+          .catch(() => '');
+      }
+    }
+    if (!profileId) {
+      const dataKeys = response?.data && typeof response.data === 'object'
+        ? Object.keys(response.data).slice(0, 20).join(',')
+        : typeof response?.data;
       throw new AgentError('LAUNCHER_RESPONSE_INVALID', 'Created profile did not return a profile ID', {
-        status: 502
+        status: 502,
+        details: { dataKeys }
       });
     }
     return {
@@ -217,6 +291,19 @@ export class LauncherClient {
       osType: os,
       proxy: false
     };
+  }
+
+  async findSavedProfile({ folderId, name }, context = {}) {
+    const folder = cleanId(folderId, 'folderId');
+    const profileName = cleanProfileName(name);
+    const response = await this.request('/profile/search', {
+      api: true,
+      method: 'POST',
+      body: { limit: 100, offset: 0, search_text: profileName },
+      signal: context.signal
+    });
+    const profileId = matchingProfileId(response, { folderId: folder, name: profileName });
+    return profileId ? cleanId(profileId, 'profileId') : '';
   }
 
   async startQuickProfile(payload = {}, context = {}) {

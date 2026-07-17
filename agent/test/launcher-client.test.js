@@ -5,6 +5,7 @@ import { LauncherClient } from '../src/launcher-client.js';
 
 async function fixture() {
   const requests = [];
+  let createdProfile = null;
   const server = http.createServer(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -16,10 +17,22 @@ async function fixture() {
     });
     res.setHeader('Content-Type', 'application/json');
     if (req.url === '/api/v1/version') return res.end(JSON.stringify({ version: 'test' }));
-    if (req.url === '/profile/create') {
+    if (req.url === '/profile/search') {
       return res.end(JSON.stringify({
         status: { http_code: 200 },
-        data: { profile_id: 'replacement-profile' }
+        data: { profiles: createdProfile ? [createdProfile] : [] }
+      }));
+    }
+    if (req.url === '/profile/create') {
+      const payload = JSON.parse(requests.at(-1).body);
+      createdProfile = {
+        profile_id: 'replacement-profile',
+        name: payload.name,
+        folder_id: payload.folder_id
+      };
+      return res.end(JSON.stringify({
+        status: { http_code: 200 },
+        data: { ids: ['replacement-profile'] }
       }));
     }
     if (req.url.startsWith('/api/v2/profile/f/')) return res.end(JSON.stringify({ data: { port: 12345 } }));
@@ -80,6 +93,10 @@ test('launcher client performs authenticated allowlisted profile operations', as
       proxy: false
     }
   );
+  assert.equal(
+    (await client.createSavedProfile({ folderId: 'folder-1', name: 'Canva owner@example.com' })).reused,
+    true
+  );
   assert.deepEqual(
     await client.startQuickProfile({ automation: 'selenium', customStartUrls: ['https://example.com'] }),
     { profileId: 'quick-1', port: 23456, automation: 'selenium', headless: false }
@@ -110,10 +127,11 @@ test('launcher client performs authenticated allowlisted profile operations', as
 
   assert.equal(fx.requests[0].authorization, null);
   assert.equal(fx.requests[1].authorization, 'Bearer workspace-token');
-  const createBody = JSON.parse(fx.requests[2].body);
+  const createBody = JSON.parse(fx.requests[3].body);
   assert.equal(createBody.parameters.flags.proxy_masking, 'disabled');
   assert.equal(createBody.parameters.proxy, undefined);
-  const quickBody = JSON.parse(fx.requests[3].body);
+  assert.equal(fx.requests.filter((item) => item.url === '/profile/create').length, 1);
+  const quickBody = JSON.parse(fx.requests[5].body);
   assert.equal(quickBody.automation, 'selenium');
   assert.deepEqual(quickBody.parameters.custom_start_urls, ['https://example.com']);
 });

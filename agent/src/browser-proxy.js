@@ -4,6 +4,7 @@ import net from 'node:net';
 const MAX_PROXY_RESPONSE_BYTES = 2 * 1024 * 1024;
 const TARGET_STARTUP_RETRY_MS = 20000;
 const TARGET_STARTUP_RETRY_DELAY_MS = 250;
+const TARGET_HOSTS = ['127.0.0.1', '::1'];
 
 function parseBrowserRoute(rawUrl) {
   const url = new URL(rawUrl || '/', 'http://multilogin-agent.local');
@@ -17,8 +18,9 @@ function parseBrowserRoute(rawUrl) {
   };
 }
 
-function targetHeaders(headers, port) {
-  const copy = { ...headers, host: `127.0.0.1:${port}` };
+function targetHeaders(headers, port, hostname = '127.0.0.1') {
+  const host = hostname.includes(':') ? `[${hostname}]` : hostname;
+  const copy = { ...headers, host: `${host}:${port}` };
   delete copy.authorization;
   delete copy['x-agent-token'];
   delete copy['idempotency-key'];
@@ -40,7 +42,7 @@ function rewriteDebuggerUrls(text, requestHost, session, route) {
   if (!text.includes('webSocketDebuggerUrl') && !text.includes(`:${session.port}`)) return text;
   const browserBase = `ws://${requestHost}${route.prefix}`;
   return text.replace(
-    new RegExp(`ws:\\/\\/(?:127\\.0\\.0\\.1|localhost|0\\.0\\.0\\.0):${session.port}`, 'gi'),
+    new RegExp(`ws:\\/\\/(?:127\\.0\\.0\\.1|localhost|0\\.0\\.0\\.0|\\[::1\\]):${session.port}`, 'gi'),
     browserBase
   );
 }
@@ -62,12 +64,13 @@ export function createBrowserProxy(sessionRegistry) {
       let attempt = 0;
       const connect = () => {
         attempt += 1;
+        const hostname = TARGET_HOSTS[(attempt - 1) % TARGET_HOSTS.length];
         const target = http.request({
-          hostname: '127.0.0.1',
+          hostname,
           port: session.port,
           path: route.targetPath,
           method: req.method,
-          headers: targetHeaders(req.headers, session.port)
+          headers: targetHeaders(req.headers, session.port, hostname)
         }, (targetResponse) => {
           const chunks = [];
           let size = 0;
@@ -122,33 +125,38 @@ export function createBrowserProxy(sessionRegistry) {
         return;
       }
 
-      const target = net.connect(session.port, '127.0.0.1');
       upgradedSockets.add(socket);
-      upgradedSockets.add(target);
-      const forget = () => {
-        upgradedSockets.delete(socket);
-        upgradedSockets.delete(target);
-      };
-      socket.once('close', forget);
-      target.once('close', forget);
-      target.once('connect', () => {
-        const headers = targetHeaders(req.headers, session.port);
-        const lines = [`${req.method || 'GET'} ${route.targetPath} HTTP/${req.httpVersion || '1.1'}`];
-        for (const [name, value] of Object.entries(headers)) {
-          if (Array.isArray(value)) {
-            for (const item of value) lines.push(`${name}: ${item}`);
-          } else if (value != null) {
-            lines.push(`${name}: ${value}`);
+      socket.once('close', () => upgradedSockets.delete(socket));
+      const connectTarget = (hostIndex) => {
+        const hostname = TARGET_HOSTS[hostIndex];
+        const target = net.connect(session.port, hostname);
+        upgradedSockets.add(target);
+        target.once('close', () => upgradedSockets.delete(target));
+        target.once('connect', () => {
+          const headers = targetHeaders(req.headers, session.port, hostname);
+          const lines = [`${req.method || 'GET'} ${route.targetPath} HTTP/${req.httpVersion || '1.1'}`];
+          for (const [name, value] of Object.entries(headers)) {
+            if (Array.isArray(value)) {
+              for (const item of value) lines.push(`${name}: ${item}`);
+            } else if (value != null) {
+              lines.push(`${name}: ${value}`);
+            }
           }
-        }
-        target.write(`${lines.join('\r\n')}\r\n\r\n`);
-        if (head?.length) target.write(head);
-        socket.pipe(target).pipe(socket);
-      });
-      target.once('error', () => {
-        if (!socket.destroyed) socket.end('HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n');
-      });
-      socket.once('error', () => target.destroy());
+          target.write(`${lines.join('\r\n')}\r\n\r\n`);
+          if (head?.length) target.write(head);
+          socket.pipe(target).pipe(socket);
+        });
+        target.once('error', () => {
+          target.destroy();
+          if (hostIndex + 1 < TARGET_HOSTS.length && !socket.destroyed) {
+            connectTarget(hostIndex + 1);
+            return;
+          }
+          if (!socket.destroyed) socket.end('HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n');
+        });
+        socket.once('error', () => target.destroy());
+      };
+      connectTarget(0);
     },
 
     close() {

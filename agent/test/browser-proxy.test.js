@@ -91,3 +91,36 @@ test('browser proxy waits for a delayed DevTools listener', async (t) => {
   assert.equal(response.status, 200);
   assert.match((await response.json()).webSocketDebuggerUrl, /\/devtools\/browser\/delayed$/);
 });
+
+test('browser proxy falls back to an IPv6 loopback DevTools listener', async (t) => {
+  const browser = http.createServer((_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ webSocketDebuggerUrl: `ws://[::1]:${browser.address().port}/devtools/browser/ipv6` }));
+  });
+  try {
+    await new Promise((resolve, reject) => {
+      browser.once('error', reject);
+      browser.listen(0, '::1', resolve);
+    });
+  } catch {
+    t.skip('IPv6 loopback is unavailable');
+    return;
+  }
+  t.after(() => new Promise((resolve) => browser.close(resolve)));
+
+  const sessions = new SessionRegistry();
+  const registered = sessions.create({
+    profileId: 'saved-ipv6-profile',
+    port: browser.address().port,
+    automation: 'playwright'
+  });
+  const proxy = createBrowserProxy(sessions);
+  const agent = http.createServer((req, res) => proxy.proxyHttp(req, res));
+  const agentPort = await listen(agent);
+  t.after(() => new Promise((resolve) => agent.close(resolve)));
+  t.after(() => proxy.close());
+
+  const response = await fetch(`http://127.0.0.1:${agentPort}${registered.connectionPath}/json/version`);
+  assert.equal(response.status, 200);
+  assert.match((await response.json()).webSocketDebuggerUrl, /\/devtools\/browser\/ipv6$/);
+});

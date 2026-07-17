@@ -1,3 +1,5 @@
+FROM node:22-bookworm-slim AS node-runtime
+
 FROM ubuntu:24.04
 
 ARG MLX_DEB_URL=https://cdn-mlx-prod.multiloginapp.com/desktop/latest/desktop-multilogin-ubuntu-24.04-amd64.deb
@@ -8,6 +10,8 @@ ARG CHROME_DEB_SHA256=83ED59C85878EBB8FA53915EBE7066CAFC58D1C04C1C95449486E6F9D9
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
+
+COPY --from=node-runtime /usr/local/ /usr/local/
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -46,11 +50,14 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY google-chrome-rdp.sh /usr/local/bin/google-chrome-rdp
 COPY mimic-chrome-wrapper.sh /usr/local/libexec/mimic-chrome-wrapper
 COPY mimic-wrapper-watch.sh /usr/local/bin/mimic-wrapper-watch
+COPY multilogin-agent-start.sh /usr/local/bin/multilogin-agent-start
+COPY agent /opt/multilogin-agent
 
 RUN chmod 0755 \
       /usr/local/bin/entrypoint.sh \
       /usr/local/bin/google-chrome-rdp \
       /usr/local/bin/mimic-wrapper-watch \
+      /usr/local/bin/multilogin-agent-start \
       /usr/local/libexec/mimic-chrome-wrapper \
     && update-alternatives --install \
       /usr/bin/x-www-browser \
@@ -59,6 +66,6 @@ RUN chmod 0755 \
       300 \
     && update-alternatives --set x-www-browser /usr/local/bin/google-chrome-rdp
 
-EXPOSE 3389
+EXPOSE 3389 8787
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

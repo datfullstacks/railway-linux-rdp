@@ -14,6 +14,7 @@ Deploy an Ubuntu 24.04 container with the lightweight XFCE desktop and xrdp. Con
 - Password supplied through Railway variables
 - Optional persistent home directory using a Railway Volume
 - TCP port `3389`
+- Optional private `multilogin-agent` on port `8787`
 
 ## Deploy on Railway
 
@@ -25,12 +26,16 @@ Deploy an Ubuntu 24.04 container with the lightweight XFCE desktop and xrdp. Con
    | --- | --- | --- | --- |
    | `RDP_PASSWORD` | Yes | Generate a strong password | Minimum 10 characters; no colon or newline |
    | `RDP_USER` | No | `railway` | Lowercase Linux username; defaults to `railway` |
+   | `MULTILOGIN_AGENT_TOKEN` | No | Generate a random secret | Enables the private agent API; minimum 32 characters |
+   | `MULTILOGIN_TOKEN` | Required by agent profile jobs | Multilogin Automation Token | Do not use the account password |
 
 4. Open **Settings → Networking → TCP Proxy**.
 5. Add a TCP Proxy targeting internal port `3389`.
 6. Railway will show a hostname and external port, for example `roundhouse.proxy.rlwy.net:25341`.
 
 Do not create a public HTTP domain for this service. RDP uses the TCP Proxy, not an HTTP domain.
+The TCP Proxy must continue to target only port `3389`; port `8787` is for
+Railway private networking.
 
 ## Connect from Windows
 
@@ -55,6 +60,26 @@ mlxapp
 Sign in with your own Multilogin account. Multilogin stores its local data under `/home/<RDP_USER>/mlx`, so attach a Railway Volume to the user's home directory if you need that data to survive redeployments.
 
 Railway blocks the Linux sandbox operation required by the Mimic browser core. A supervised watcher therefore wraps every downloaded `mimic_*` core and launches it with `--no-sandbox`, `--disable-dev-shm-usage`, and software rendering. This applies to every Mimic profile in this container. Use only a trusted single-user RDP account and avoid sensitive browsing because disabling the browser sandbox reduces isolation.
+
+## Private Multilogin agent
+
+Set `MULTILOGIN_AGENT_TOKEN` and `MULTILOGIN_TOKEN` to enable the agent. Services
+inside the same Railway project can then use:
+
+```text
+http://railway-linux-rdp.railway.internal:8787
+```
+
+The agent queues local Launcher operations and proxies the resulting CDP or
+Selenium browser session without exposing the browser's loopback port. Keep
+`MULTILOGIN_AGENT_CONCURRENCY=1` until single-profile smoke tests pass.
+
+The Multilogin desktop/Launcher must be running for `/readyz` to return `200`.
+Do not change the RDP service's Railway healthcheck to agent `/readyz` until
+Launcher startup has been automated and verified.
+
+See [`agent/README.md`](agent/README.md) for the API, supported job types, and
+worker integration contract.
 
 ## Open Google Chrome
 

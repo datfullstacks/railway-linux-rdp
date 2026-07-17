@@ -18,6 +18,8 @@ if [[ -z "$HOME_DIR" ]]; then
 fi
 
 install -d -m 0755 -o "$RDP_USER" -g "$RDP_USER" \
+  "$HOME_DIR/mlx" \
+  "$HOME_DIR/mlx/custom_extensions" \
   "$HOME_DIR/mlx/custom_extensions/mimic"
 
 declare -A OBSERVED_SIZES=()

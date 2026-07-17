@@ -18,7 +18,6 @@ RUN apt-get update \
     && locale-gen en_US.UTF-8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
-    && sed -i 's/^port=.*/port=3389/' /etc/xrdp/xrdp.ini \
     && sed -i 's/^AllowRootLogin=.*/AllowRootLogin=false/' /etc/xrdp/sesman.ini
 
 COPY supervisord.conf /etc/supervisor/conf.d/railway-rdp.conf
@@ -29,4 +28,3 @@ RUN chmod 0755 /usr/local/bin/entrypoint.sh
 EXPOSE 3389
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-

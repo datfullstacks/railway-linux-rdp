@@ -43,6 +43,16 @@ if [[ -f /usr/share/applications/mlxapp.desktop ]]; then
     "$HOME_DIR/Desktop/Multilogin.desktop"
 fi
 
+if [[ -f /usr/share/applications/google-chrome.desktop ]]; then
+  mkdir -p "$HOME_DIR/Desktop"
+  install -m 0755 \
+    /usr/share/applications/google-chrome.desktop \
+    "$HOME_DIR/Desktop/Google Chrome.desktop"
+  sed -i \
+    's|/usr/bin/google-chrome-stable|/usr/local/bin/google-chrome-rdp|g' \
+    "$HOME_DIR/Desktop/Google Chrome.desktop"
+fi
+
 chown -R "$RDP_USER:$RDP_USER" "$HOME_DIR"
 chmod 0700 "$HOME_DIR"
 

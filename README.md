@@ -9,6 +9,7 @@ Deploy an Ubuntu 24.04 container with the lightweight XFCE desktop and xrdp. Con
 - Ubuntu 24.04
 - XFCE desktop
 - xrdp and xorgxrdp
+- Google Chrome
 - Multilogin desktop app
 - Password supplied through Railway variables
 - Optional persistent home directory using a Railway Volume
@@ -52,6 +53,16 @@ mlxapp
 ```
 
 Sign in with your own Multilogin account. Multilogin stores its local data under `/home/<RDP_USER>/mlx`, so attach a Railway Volume to the user's home directory if you need that data to survive redeployments.
+
+## Open Google Chrome
+
+Open the `Google Chrome` shortcut on the desktop, or run this command in a terminal:
+
+```bash
+google-chrome-rdp
+```
+
+Railway containers block the Linux namespace operation required by Chrome's sandbox. The wrapper therefore launches Chrome with `--no-sandbox`, `--disable-dev-shm-usage`, and software rendering. Use this only as a single-user RDP container and avoid sensitive browsing because disabling the browser sandbox reduces isolation.
 
 ## Persistent files
 

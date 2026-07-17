@@ -215,6 +215,27 @@ export class LauncherClient {
     return { profileId: String(profileId), port, automation, headless: Boolean(payload.headless) };
   }
 
+  async validateProxy(payload = {}, context = {}) {
+    const proxy = cleanProxy(payload.proxy);
+    if (!proxy) {
+      throw new AgentError('PAYLOAD_INVALID', 'proxy is required', { status: 400 });
+    }
+    const response = await this.request('/api/v1/proxy/validate', {
+      method: 'POST',
+      body: proxy,
+      signal: context.signal
+    });
+    const data = response?.data || {};
+    return {
+      status: { http_code: Number(response?.status?.http_code || 200) },
+      data: {
+        ip: String(data.ip || ''),
+        country_code: String(data.country_code || ''),
+        country: String(data.country || '')
+      }
+    };
+  }
+
   async stopProfile({ profileId }, context = {}) {
     const profile = cleanId(profileId, 'profileId');
     await this.request(`/api/v1/profile/stop/p/${encodeURIComponent(profile)}`, {

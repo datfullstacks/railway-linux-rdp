@@ -45,6 +45,12 @@ export function createJobRegistry(launcher, sessions) {
         return sessions.create(started);
       }
     }],
+    ['proxy.validate', {
+      validate(payload) {
+        return onlyKeys(objectPayload(payload), ['proxy']);
+      },
+      run: (payload, context) => launcher.validateProxy(payload, context)
+    }],
     ['profile.stop', {
       validate(payload) {
         const value = onlyKeys(objectPayload(payload), ['profileId', 'sessionId']);

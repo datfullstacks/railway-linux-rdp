@@ -13,6 +13,7 @@ async function fixture() {
     health: async () => ({ ok: true }),
     startSavedProfile: async (payload) => ({ profileId: payload.profileId, port: 12345 }),
     startQuickProfile: async () => ({ profileId: 'quick-1', port: 23456 }),
+    validateProxy: async () => ({ status: { http_code: 200 }, data: { ip: '203.0.113.10' } }),
     stopProfile: async (payload) => ({ profileId: payload.profileId, stopped: true })
   };
   const sessions = new SessionRegistry();

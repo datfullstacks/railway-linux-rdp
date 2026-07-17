@@ -20,6 +20,17 @@ async function fixture() {
     if (req.url === '/api/v3/profile/quick') {
       return res.end(JSON.stringify({ data: { id: 'quick-1', port: 23456 } }));
     }
+    if (req.url === '/api/v1/proxy/validate') {
+      return res.end(JSON.stringify({
+        status: { http_code: 200 },
+        data: {
+          ip: '203.0.113.10',
+          country_code: 'US',
+          country: 'United States',
+          password: 'must-not-return'
+        }
+      }));
+    }
     if (req.url.startsWith('/api/v1/profile/stop/p/')) return res.end(JSON.stringify({ ok: true }));
     res.statusCode = 404;
     return res.end(JSON.stringify({ message: 'not found' }));
@@ -55,6 +66,20 @@ test('launcher client performs authenticated allowlisted profile operations', as
     profileId: 'quick-1',
     stopped: true
   });
+  const validation = await client.validateProxy({
+    proxy: {
+      type: 'http',
+      host: 'proxy.example',
+      port: 8080,
+      username: 'user',
+      password: 'secret'
+    }
+  });
+  assert.deepEqual(validation, {
+    status: { http_code: 200 },
+    data: { ip: '203.0.113.10', country_code: 'US', country: 'United States' }
+  });
+  assert.doesNotMatch(JSON.stringify(validation), /secret|must-not-return/);
 
   assert.equal(fx.requests[0].authorization, null);
   assert.equal(fx.requests[1].authorization, 'Bearer workspace-token');

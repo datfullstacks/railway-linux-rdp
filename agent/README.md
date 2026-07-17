@@ -79,6 +79,7 @@ Supported job types:
 launcher.health
 profile.saved.start
 profile.quick.start
+proxy.validate
 profile.stop
 ```
 

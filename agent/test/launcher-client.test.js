@@ -16,6 +16,12 @@ async function fixture() {
     });
     res.setHeader('Content-Type', 'application/json');
     if (req.url === '/api/v1/version') return res.end(JSON.stringify({ version: 'test' }));
+    if (req.url === '/profile/create') {
+      return res.end(JSON.stringify({
+        status: { http_code: 200 },
+        data: { profile_id: 'replacement-profile' }
+      }));
+    }
     if (req.url.startsWith('/api/v2/profile/f/')) return res.end(JSON.stringify({ data: { port: 12345 } }));
     if (req.url === '/api/v3/profile/quick') {
       return res.end(JSON.stringify({ data: { id: 'quick-1', port: 23456 } }));
@@ -53,6 +59,7 @@ test('launcher client performs authenticated allowlisted profile operations', as
   t.after(fx.close);
   const client = new LauncherClient({
     baseUrl: fx.baseUrl,
+    apiBaseUrl: fx.baseUrl,
     automationToken: 'workspace-token',
     timeoutMs: 1000
   });
@@ -61,6 +68,17 @@ test('launcher client performs authenticated allowlisted profile operations', as
   assert.deepEqual(
     await client.startSavedProfile({ folderId: 'folder-1', profileId: 'profile-1', headless: true }),
     { profileId: 'profile-1', port: 12345, automation: 'playwright', headless: true }
+  );
+  assert.deepEqual(
+    await client.createSavedProfile({ folderId: 'folder-1', name: 'Canva owner@example.com' }),
+    {
+      profileId: 'replacement-profile',
+      folderId: 'folder-1',
+      name: 'Canva owner@example.com',
+      browserType: 'mimic',
+      osType: 'windows',
+      proxy: false
+    }
   );
   assert.deepEqual(
     await client.startQuickProfile({ automation: 'selenium', customStartUrls: ['https://example.com'] }),
@@ -92,7 +110,10 @@ test('launcher client performs authenticated allowlisted profile operations', as
 
   assert.equal(fx.requests[0].authorization, null);
   assert.equal(fx.requests[1].authorization, 'Bearer workspace-token');
-  const quickBody = JSON.parse(fx.requests[2].body);
+  const createBody = JSON.parse(fx.requests[2].body);
+  assert.equal(createBody.parameters.flags.proxy_masking, 'disabled');
+  assert.equal(createBody.parameters.proxy, undefined);
+  const quickBody = JSON.parse(fx.requests[3].body);
   assert.equal(quickBody.automation, 'selenium');
   assert.deepEqual(quickBody.parameters.custom_start_urls, ['https://example.com']);
 });
@@ -109,6 +130,7 @@ test('launcher client validates identifiers and proxy secrets before network cal
   t.after(fx.close);
   const client = new LauncherClient({
     baseUrl: fx.baseUrl,
+    apiBaseUrl: fx.baseUrl,
     automationToken: 'workspace-token',
     timeoutMs: 1000
   });
@@ -119,5 +141,9 @@ test('launcher client validates identifiers and proxy secrets before network cal
   await assert.rejects(
     () => client.startQuickProfile({ proxy: { type: 'http', host: 'bad host', port: 8080 } }),
     /proxy configuration is invalid/
+  );
+  await assert.rejects(
+    () => client.createSavedProfile({ folderId: 'folder-1', name: 'bad\nname' }),
+    /profile name is invalid/
   );
 });

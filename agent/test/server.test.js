@@ -11,6 +11,7 @@ const API_TOKEN = 'z'.repeat(48);
 async function fixture() {
   const launcher = {
     health: async () => ({ ok: true }),
+    createSavedProfile: async (payload) => ({ profileId: 'replacement-profile', folderId: payload.folderId, proxy: false }),
     startSavedProfile: async (payload) => ({ profileId: payload.profileId, port: 12345 }),
     startQuickProfile: async () => ({ profileId: 'quick-1', port: 23456 }),
     validateProxy: async () => ({ status: { http_code: 200 }, data: { ip: '203.0.113.10' } }),
@@ -61,6 +62,7 @@ test('server exposes unauthenticated probes and protects agent details', async (
   const body = await status.json();
   assert.equal(body.launcherReady, true);
   assert.ok(body.supportedJobTypes.includes('profile.saved.start'));
+  assert.ok(body.supportedJobTypes.includes('profile.saved.create'));
 });
 
 test('server queues, polls, and idempotently replays profile jobs', async (t) => {

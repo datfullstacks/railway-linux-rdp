@@ -27,6 +27,14 @@ function cleanId(value, name) {
   return normalized;
 }
 
+function cleanProfileName(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized || normalized.length > 100 || /[\u0000-\u001f\u007f]/.test(normalized)) {
+    throw new AgentError('PAYLOAD_INVALID', 'profile name is invalid', { status: 400 });
+  }
+  return normalized;
+}
+
 function cleanProxy(proxy) {
   if (proxy == null) return null;
   if (!proxy || typeof proxy !== 'object' || Array.isArray(proxy)) {
@@ -47,13 +55,14 @@ function cleanProxy(proxy) {
 }
 
 export class LauncherClient {
-  constructor({ baseUrl, automationToken = '', timeoutMs = 60000 }) {
+  constructor({ baseUrl, apiBaseUrl = 'https://api.multilogin.com', automationToken = '', timeoutMs = 60000 }) {
     this.baseUrl = new URL(baseUrl);
+    this.apiBaseUrl = new URL(apiBaseUrl);
     this.automationToken = automationToken;
     this.timeoutMs = timeoutMs;
   }
 
-  async request(pathname, { method = 'GET', body, authenticated = true, timeoutMs, signal } = {}) {
+  async request(pathname, { method = 'GET', body, authenticated = true, timeoutMs, signal, api = false } = {}) {
     if (authenticated && !this.automationToken) {
       throw new AgentError(
         'MULTILOGIN_TOKEN_REQUIRED',
@@ -62,7 +71,8 @@ export class LauncherClient {
       );
     }
 
-    const url = new URL(pathname, `${this.baseUrl.toString().replace(/\/+$/, '')}/`);
+    const requestBaseUrl = api ? this.apiBaseUrl : this.baseUrl;
+    const url = new URL(pathname, `${requestBaseUrl.toString().replace(/\/+$/, '')}/`);
     const serialized = body === undefined ? null : JSON.stringify(body);
     const headers = { Accept: 'application/json' };
     if (authenticated) headers.Authorization = `Bearer ${this.automationToken}`;
@@ -168,6 +178,45 @@ export class LauncherClient {
       });
     }
     return { profileId: profile, port, automation: automationType, headless: Boolean(headless) };
+  }
+
+  async createSavedProfile({ folderId, name, browserType = 'mimic', osType = 'windows' }, context = {}) {
+    const folder = cleanId(folderId, 'folderId');
+    const profileName = cleanProfileName(name);
+    const browser = String(browserType || 'mimic').toLowerCase();
+    const os = String(osType || 'windows').toLowerCase();
+    if (!['mimic', 'stealthfox'].includes(browser) || !['windows', 'macos', 'linux'].includes(os)) {
+      throw new AgentError('PAYLOAD_INVALID', 'saved profile browser or OS type is invalid', { status: 400 });
+    }
+    const response = await this.request('/profile/create', {
+      api: true,
+      method: 'POST',
+      body: {
+        name: profileName,
+        folder_id: folder,
+        browser_type: browser,
+        os_type: os,
+        parameters: {
+          flags: { proxy_masking: 'disabled' },
+          storage: { is_local: false, save_service_worker: true }
+        }
+      },
+      signal: context.signal
+    });
+    const profileId = response?.data?.profile_id || response?.data?.id;
+    if (!profileId) {
+      throw new AgentError('LAUNCHER_RESPONSE_INVALID', 'Created profile did not return a profile ID', {
+        status: 502
+      });
+    }
+    return {
+      profileId: cleanId(profileId, 'profileId'),
+      folderId: folder,
+      name: profileName,
+      browserType: browser,
+      osType: os,
+      proxy: false
+    };
   }
 
   async startQuickProfile(payload = {}, context = {}) {

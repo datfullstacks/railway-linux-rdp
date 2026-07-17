@@ -78,6 +78,7 @@ Supported job types:
 ```text
 launcher.health
 profile.saved.start
+profile.saved.create
 profile.quick.start
 proxy.validate
 profile.stop
@@ -99,6 +100,23 @@ twice. The key is retained for the lifetime of the job record.
   }
 }
 ```
+
+### Create a saved profile without a proxy
+
+```json
+{
+  "type": "profile.saved.create",
+  "payload": {
+    "folderId": "folder-id",
+    "name": "Canva owner@example.com",
+    "browserType": "mimic",
+    "osType": "windows"
+  }
+}
+```
+
+This job always creates cloud storage with `proxy_masking` set to `disabled`;
+it does not accept proxy fields.
 
 ### Start a quick profile
 

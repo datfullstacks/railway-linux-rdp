@@ -34,6 +34,12 @@ export function createJobRegistry(launcher, sessions) {
         return sessions.create(started);
       }
     }],
+    ['profile.saved.create', {
+      validate(payload) {
+        return onlyKeys(objectPayload(payload), ['folderId', 'name', 'browserType', 'osType']);
+      },
+      run: (payload, context) => launcher.createSavedProfile(payload, context)
+    }],
     ['profile.quick.start', {
       validate(payload) {
         return onlyKeys(objectPayload(payload), [
